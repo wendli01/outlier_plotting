@@ -58,8 +58,9 @@ def _plot_outliers(ax, outliers, plot_extents, orient='v', group=0, padding=.05,
     _plot_text(True), _plot_text(False)
 
 
-def handle_outliers(data: pd.DataFrame, x: str, y: str, hue: str = None, plotter: callable = sns.swarmplot,
-                    inlier_range: float = 1.5, padding: float = .05, margin: float = .1, **kwargs) -> plt.axes:
+def handle_outliers(data: pd.DataFrame, x: str = None, y: str = None, hue: str = None,
+                    plotter: callable = sns.swarmplot, inlier_range: float = 1.5, padding: float = .05,
+                    margin: float = .1, **kwargs) -> plt.axes:
     """
     Remove outliers from the plot and show them as text boxes. Works well with `sns.violinplot`, `sns.swarmplot`,
     `sns.boxplot` and the like. Does *not* work with axis grids.
@@ -100,17 +101,31 @@ def handle_outliers(data: pd.DataFrame, x: str, y: str, hue: str = None, plotter
         iqr = np.diff(quartiles)
         return quartiles[0] - inlier_range * iqr, quartiles[1] + inlier_range * iqr
 
+    def add_to_kwargs(kwargs, k, v):
+        if v is not None:
+            kwargs[k] = v
+
     if hue is not None:
         warnings.warn('Hues are not fully supported!')
 
     value_label, group_label, group_names, orient = _get_info()
-    plot_data = data[value_label].values
+    plot_data = data[value_label].values if value_label is not None else np.array(data)
 
     cutoff_lo, cutoff_hi = _get_cutoffs(plot_data)
-    data_ = data.loc[np.logical_and(cutoff_lo <= plot_data, plot_data <= cutoff_hi)]
+    inlier_data = data.loc[np.logical_and(cutoff_lo <= plot_data, plot_data <= cutoff_hi)]
 
-    ax = plotter(x=x, y=y, hue=hue, data=data_, **kwargs)
+    add_to_kwargs(kwargs, 'x', x), add_to_kwargs(kwargs, 'y', y), add_to_kwargs(kwargs, 'hue', hue)
+
+    ax = plotter(data=inlier_data, **kwargs)
     plot_extents = np.array([ax.get_xlim(), ax.get_ylim()])
+
+    if plotter == sns.kdeplot:
+        orient = 'h'
+        group = .5 * np.diff(ax.get_ylim())
+        outlier_data = plot_data[np.logical_or(cutoff_lo > plot_data, plot_data > cutoff_hi)]
+        _plot_outliers(ax, outlier_data, orient=orient, group=group, padding=padding, margin=margin,
+                       plot_extents=plot_extents)
+        return ax
 
     for group_idx, group_name in enumerate(group_names):
         group_values = data[data[group_label] == group_name][value_label].values
