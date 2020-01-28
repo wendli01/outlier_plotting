@@ -7,20 +7,23 @@ import seaborn as sns
 from matplotlib import pyplot as plt
 from seaborn.categorical import _CategoricalPlotter
 import pandas as pd
-import warnings
 
 
-def _plot_outliers(ax, outliers, plot_extents, orient='v', group=0, padding=.05, margin=.1, outlier_hues=None):
+def _plot_outliers(ax, outliers, plot_extents, orient='v', group=0, padding=.05, margin=.1, outlier_hues=None,
+                   fmt='.2g'):
     def _vals_to_str(vals, val_categories):
+        def _format_val(val):
+            return ("{:" + fmt + "}").format(val)
+
         if val_categories is None:
             vals = sorted(vals, reverse=True)
-            return '\n'.join([str(round(val)) for val in vals])
+            return '\n'.join([_format_val(val) for val in vals])
 
         texts = []
         df = pd.DataFrame({'val': vals, 'cat': val_categories})
         for cat in sorted(df.cat.unique()):
             cat_vals = df[df.cat == cat].val
-            texts.append(str(cat) + ': ' + '\n '.join([str(round(val)) for val in cat_vals]))
+            texts.append(str(cat) + ': ' + '\n '.join([_format_val(val) for val in cat_vals]))
         return '\n'.join(texts)
 
     def _add_margin(lo, hi, mrg=.1, rng=None):
@@ -70,7 +73,7 @@ def _plot_outliers(ax, outliers, plot_extents, orient='v', group=0, padding=.05,
 
 def handle_outliers(data: pd.DataFrame, x: str = None, y: str = None, hue: str = None,
                     plotter: callable = sns.swarmplot, inlier_range: float = 1.5, padding: float = .05,
-                    margin: float = .1, **kwargs) -> plt.axes:
+                    margin: float = .1, fmt='.2g', **kwargs) -> plt.axes:
     """
     Remove outliers from the plot and show them as text boxes. Works well with `sns.violinplot`, `sns.swarmplot`,
     `sns.boxplot` and the like. Does *not* work with axis grids.
@@ -92,6 +95,8 @@ def handle_outliers(data: pd.DataFrame, x: str = None, y: str = None, hue: str =
         Padding in % of figure size between original plot and text boxes.
     margin: float
         Margin in % of figure size between text boxes and axis extent.
+    fmt: str
+        String formatting code to use when adding annotations.
     kwargs: key, value mappings
         Other keyword arguments are passed through to the plotter.
     Returns
@@ -125,7 +130,7 @@ def handle_outliers(data: pd.DataFrame, x: str = None, y: str = None, hue: str =
         group_outliers = group_values[is_outlier]
         outlier_hues = plot_hues[group_idx][is_outlier] if plot_hues is not None else None
         _plot_outliers(ax, group_outliers, orient=orient, group=group_idx, padding=padding, margin=margin,
-                       plot_extents=plot_extents, outlier_hues=outlier_hues)
+                       plot_extents=plot_extents, outlier_hues=outlier_hues, fmt=fmt)
 
     value_label, group_label, group_names, orient, hue_names, plot_hues = _get_info()
     plot_data = data[value_label].values if value_label is not None else np.array(data)
@@ -143,7 +148,7 @@ def handle_outliers(data: pd.DataFrame, x: str = None, y: str = None, hue: str =
         group = .5 * np.diff(ax.get_ylim())
         outlier_data = plot_data[np.logical_or(cutoff_lo > plot_data, plot_data > cutoff_hi)]
         _plot_outliers(ax, outlier_data, orient=orient, group=group, padding=padding, margin=margin,
-                       plot_extents=plot_extents)
+                       plot_extents=plot_extents, fmt=fmt)
         return ax
 
     if not group_names:
