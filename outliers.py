@@ -10,10 +10,18 @@ import pandas as pd
 import warnings
 
 
-def _plot_outliers(ax, outliers, plot_extents, orient='v', group=0, padding=.05, margin=.1):
-    def _vals_to_str(vals):
-        vals = sorted(vals, reverse=True)
-        return '\n'.join([str(round(val)) for val in vals])
+def _plot_outliers(ax, outliers, plot_extents, orient='v', group=0, padding=.05, margin=.1, outlier_hues=None):
+    def _vals_to_str(vals, val_categories):
+        if val_categories is None:
+            vals = sorted(vals, reverse=True)
+            return '\n'.join([str(round(val)) for val in vals])
+
+        texts = []
+        df = pd.DataFrame({'val': vals, 'cat': val_categories})
+        for cat in sorted(df.cat.unique()):
+            cat_vals = df[df.cat == cat].val
+            texts.append(str(cat) + ': ' + '\n '.join([str(round(val)) for val in cat_vals]))
+        return '\n'.join(texts)
 
     def _add_margin(lo, hi, mrg=.1, rng=None):
         rng = hi - lo if rng is None else rng
@@ -34,13 +42,15 @@ def _plot_outliers(ax, outliers, plot_extents, orient='v', group=0, padding=.05,
         lim_setter(new_extents)
 
     def _plot_text(is_low):
-        points = outliers[outliers < vmin] if is_low else outliers[outliers > vmax]
+        is_relevant = outliers < vmin if is_low else outliers > vmax
+        points = outliers[is_relevant]
+        point_hues = None if outlier_hues is None else outlier_hues[is_relevant]
         if not len(points) > 0:
             return
 
         val_pos = _add_margin(vmin, vmax, padding)[0 if is_low else 1]
         props = dict(boxstyle='round', facecolor='wheat', alpha=0.1)
-        text = _vals_to_str(points)
+        text = _vals_to_str(points, point_hues)
 
         if is_v:
             t = ax.text(group, val_pos, text, ha='center',
@@ -94,27 +104,36 @@ def handle_outliers(data: pd.DataFrame, x: str = None, y: str = None, hue: str =
     def _get_info():
         cp = _CategoricalPlotter()
         cp.establish_variables(x=x, y=y, data=data, hue=hue)
-        return cp.value_label, cp.group_label, cp.group_names, cp.orient
+        return cp.value_label, cp.group_label, cp.group_names, cp.orient, cp.hue_names, cp.plot_hues
 
     def _get_cutoffs(a: np.array, quantiles=(.25, .75)):
         quartiles = np.quantile(a, list(quantiles))
         iqr = np.diff(quartiles)
         return quartiles[0] - inlier_range * iqr, quartiles[1] + inlier_range * iqr
 
-    def add_to_kwargs(kwargs, k, v):
+    def _add_to_kwargs(k, v):
         if v is not None:
             kwargs[k] = v
 
-    if hue is not None:
-        warnings.warn('Hues are not fully supported!')
+    def _plot_group_outliers(group_idx=0, group_name=None):
+        if group_name is None:
+            group_values = data[value_label].values
+        else:
+            group_values = data[data[group_label] == group_name][value_label].values
 
-    value_label, group_label, group_names, orient = _get_info()
+        is_outlier = np.logical_or(cutoff_lo > group_values, group_values > cutoff_hi)
+        group_outliers = group_values[is_outlier]
+        outlier_hues = plot_hues[group_idx][is_outlier] if plot_hues is not None else None
+        _plot_outliers(ax, group_outliers, orient=orient, group=group_idx, padding=padding, margin=margin,
+                       plot_extents=plot_extents, outlier_hues=outlier_hues)
+
+    value_label, group_label, group_names, orient, hue_names, plot_hues = _get_info()
     plot_data = data[value_label].values if value_label is not None else np.array(data)
 
     cutoff_lo, cutoff_hi = _get_cutoffs(plot_data)
     inlier_data = data.loc[np.logical_and(cutoff_lo <= plot_data, plot_data <= cutoff_hi)]
 
-    add_to_kwargs(kwargs, 'x', x), add_to_kwargs(kwargs, 'y', y), add_to_kwargs(kwargs, 'hue', hue)
+    _add_to_kwargs('x', x), _add_to_kwargs('y', y), _add_to_kwargs('hue', hue)
 
     ax = plotter(data=inlier_data, **kwargs)
     plot_extents = np.array([ax.get_xlim(), ax.get_ylim()])
@@ -127,10 +146,10 @@ def handle_outliers(data: pd.DataFrame, x: str = None, y: str = None, hue: str =
                        plot_extents=plot_extents)
         return ax
 
+    if not group_names:
+        _plot_group_outliers()
+
     for group_idx, group_name in enumerate(group_names):
-        group_values = data[data[group_label] == group_name][value_label].values
-        group_outliers = group_values[np.logical_or(cutoff_lo > group_values, group_values > cutoff_hi)]
-        _plot_outliers(ax, group_outliers, orient=orient, group=group_idx, padding=padding, margin=margin,
-                       plot_extents=plot_extents)
+        _plot_group_outliers(group_idx, group_name)
 
     return ax
