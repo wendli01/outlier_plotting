@@ -128,6 +128,9 @@ def handle_outliers(data: pd.DataFrame, x: str = None, y: str = None, hue: str =
 
         is_outlier = np.logical_or(cutoff_lo > group_values, group_values > cutoff_hi)
         group_outliers = group_values[is_outlier]
+
+        if all(is_outlier):
+            raise UserWarning('No inliers in group <{}>, please modify inlier_range!'.format(group_name))
         outlier_hues = plot_hues[group_idx][is_outlier] if plot_hues is not None else None
         _plot_outliers(ax, group_outliers, orient=orient, group=group_idx, padding=padding, margin=margin,
                        plot_extents=plot_extents, outlier_hues=outlier_hues, fmt=fmt)
