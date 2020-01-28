@@ -32,13 +32,13 @@ def _plot_outliers(ax, outliers, plot_extents, orient='v', group=0, padding=.05,
         return lo - mrg * rng, hi + mrg * rng
 
     def _set_limits(t):
-        def _get_bbox():
+        def _get_bbox_pos():
             plt.gcf().canvas.draw()
             return t.get_window_extent().inverse_transformed(plt.gca().transData)
 
-        old_extents = ax.get_ylim() if is_v else ax.get_xlim()
+        old_extents = plot_extents[dim_sel]
 
-        val_coords = np.array(_get_bbox()).T[dim_sel]
+        val_coords = np.array(_get_bbox_pos()).T[dim_sel]
         val_coords = _add_margin(*val_coords, margin, rng=np.diff(plot_extents[dim_sel]))
 
         new_extents = [np.min([val_coords, old_extents]), np.max([val_coords, old_extents])]
@@ -135,12 +135,11 @@ def handle_outliers(data: pd.DataFrame, x: str = None, y: str = None, hue: str =
 
         if all(is_outlier):
             raise UserWarning('No inliers in group <{}>, please modify inlier_range!'.format(group_name))
+
         _plot_outliers(ax, group_outliers, orient=orient, group=group_idx, padding=padding, margin=margin,
                        plot_extents=plot_extents, outlier_hues=outlier_hues, fmt=fmt)
 
-    def _plot_ax_outliers(ax: plt.Axes, ax_data: Union[pd.DataFrame, pd.Series]):
-        plot_extents = np.array([ax.get_xlim(), ax.get_ylim()])
-
+    def _plot_ax_outliers(ax: plt.Axes, ax_data: Union[pd.DataFrame, pd.Series], plot_extents):
         if plotter == sns.kdeplot:
             group = .5 * np.diff(ax.get_ylim())
             ax_data = ax_data.values
@@ -169,14 +168,17 @@ def handle_outliers(data: pd.DataFrame, x: str = None, y: str = None, hue: str =
 
     plot = plotter(data=inlier_data, **kwargs)
     if type(plot) is sns.FacetGrid:
-        plot: sns.FacetGrid
-        for row, row_name in enumerate(plot.row_names):
-            row_data = data[data[plot._row_var] == row_name]
-            for col, col_name in enumerate(plot.col_names):
-                ax = plot.axes[row][col]
-                ax_df = row_data[row_data[plot._col_var] == col_name]
-                _plot_ax_outliers(ax, ax_data=ax_df)
+        sample_ax = np.hstack(plot.axes)[0]
+        plot_extents = np.array([sample_ax.get_xlim(), sample_ax.get_ylim()])
+
+        row_names, col_names = [[None] if not a else a for a in [plot.row_names, plot.col_names]]
+        for row, row_name in enumerate(row_names):
+            row_df = data if row_name is None else data[data[kwargs['row']] == row_name]
+            for col, col_name in enumerate(col_names):
+                ax_df = row_df if col_name is None else row_df[row_df[kwargs['col']] == col_name]
+                _plot_ax_outliers(ax=plot.axes[row][col], ax_data=ax_df, plot_extents=plot_extents)
     else:
-        _plot_ax_outliers(plot, ax_data=data)
+        plot_extents = np.array([plot.get_xlim(), plot.get_ylim()])
+        _plot_ax_outliers(plot, ax_data=data, plot_extents=plot_extents)
 
     return plot
