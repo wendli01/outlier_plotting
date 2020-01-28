@@ -23,8 +23,8 @@ def _plot_outliers(ax, outliers, plot_extents, orient='v', group=0, padding=.05,
         df = pd.DataFrame({'val': vals, 'cat': val_categories})
         for cat in sorted(df.cat.unique()):
             cat_vals = df[df.cat == cat].val
-            texts.append(str(cat) + ': ' + '\n '.join([_format_val(val) for val in cat_vals]))
-        return '\n'.join(texts)
+            texts.append(str(cat) + ':\t' + '\n\t'.join([_format_val(val) for val in cat_vals]))
+        return '\n'.join(texts).expandtabs()
 
     def _add_margin(lo, hi, mrg=.1, rng=None):
         rng = hi - lo if rng is None else rng
@@ -56,11 +56,11 @@ def _plot_outliers(ax, outliers, plot_extents, orient='v', group=0, padding=.05,
         text = _vals_to_str(points, point_hues)
 
         if is_v:
-            t = ax.text(group, val_pos, text, ha='center',
+            t = ax.text(group, val_pos, text, ha='center', multialignment='right',
                         va='top' if is_low else 'bottom', bbox=props)
 
         else:
-            t = ax.text(val_pos, group, text, va='center',
+            t = ax.text(val_pos, group, text, va='center', multialignment='right',
                         ha='right' if is_low else 'left', bbox=props)
 
         _set_limits(t)
