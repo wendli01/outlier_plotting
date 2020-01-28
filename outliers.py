@@ -1,6 +1,7 @@
 """
 More graceful handling of outliers for seaborn plotting.
 """
+import warnings
 
 import numpy as np
 import seaborn as sns
@@ -43,6 +44,13 @@ def _plot_outliers(ax, outliers, plot_extents, orient='v', group=0, padding=.05,
 
         new_extents = [np.min([val_coords, old_extents]), np.max([val_coords, old_extents])]
         lim_setter = ax.set_ylim if is_v else ax.set_xlim
+
+        # if new extents are more than 2.5 times as large as old extents, we assume _get_bbox_pos failed.
+        if (np.diff(new_extents) / np.diff(old_extents)) > 2.5:
+            warnings.warn(
+                'Determining text position failed, setting extent with margin + padding = {} as fallback.'.format(
+                    margin + padding))
+            new_extents = _add_margin(old_extents[0], old_extents[1], margin + padding)
         lim_setter(new_extents)
 
     def _plot_text(is_low):
