@@ -7,6 +7,7 @@ import seaborn as sns
 from matplotlib import pyplot as plt
 from seaborn.categorical import _CategoricalPlotter
 import pandas as pd
+from typing import Union
 
 
 def _plot_outliers(ax, outliers, plot_extents, orient='v', group=0, padding=.05, margin=.1, outlier_hues=None,
@@ -109,7 +110,7 @@ def handle_outliers(data: pd.DataFrame, x: str = None, y: str = None, hue: str =
     def _get_info():
         cp = _CategoricalPlotter()
         cp.establish_variables(x=x, y=y, data=data, hue=hue)
-        return cp.value_label, cp.group_label, cp.group_names, cp.orient, cp.hue_names, cp.plot_hues
+        return cp.value_label, cp.group_label, cp.group_names, cp.orient, cp.hue_title
 
     def _get_cutoffs(a: np.array, quantiles=(.25, .75)):
         quartiles = np.quantile(a, list(quantiles))
@@ -120,23 +121,43 @@ def handle_outliers(data: pd.DataFrame, x: str = None, y: str = None, hue: str =
         if v is not None:
             kwargs[k] = v
 
-    def _plot_group_outliers(group_idx=0, group_name=None):
+    def _plot_group_outliers(df: pd.DataFrame, plot_extents, ax: plt.Axes, group_idx: int = 0,
+                             group_name: str = None):
         if group_name is None:
-            group_values = data[value_label].values
+            group_df = df
         else:
-            group_values = data[data[group_label] == group_name][value_label].values
+            group_df = df[df[group_label] == group_name]
 
+        group_values = group_df[value_label].values
         is_outlier = np.logical_or(cutoff_lo > group_values, group_values > cutoff_hi)
         group_outliers = group_values[is_outlier]
+        outlier_hues = None if hue_label is None else group_df[is_outlier][hue_label]
 
         if all(is_outlier):
             raise UserWarning('No inliers in group <{}>, please modify inlier_range!'.format(group_name))
-        outlier_hues = plot_hues[group_idx][is_outlier] if plot_hues is not None else None
         _plot_outliers(ax, group_outliers, orient=orient, group=group_idx, padding=padding, margin=margin,
                        plot_extents=plot_extents, outlier_hues=outlier_hues, fmt=fmt)
 
-    value_label, group_label, group_names, orient, hue_names, plot_hues = _get_info()
-    plot_data = data[value_label].values if value_label is not None else np.array(data)
+    def _plot_ax_outliers(ax: plt.Axes, ax_data: Union[pd.DataFrame, pd.Series]):
+        plot_extents = np.array([ax.get_xlim(), ax.get_ylim()])
+
+        if plotter == sns.kdeplot:
+            group = .5 * np.diff(ax.get_ylim())
+            ax_data = ax_data.values
+
+            outlier_data = ax_data[np.logical_or(cutoff_lo > ax_data, ax_data > cutoff_hi)]
+            _plot_outliers(ax, outlier_data, orient='h', group=group, padding=padding, margin=margin,
+                           plot_extents=plot_extents, fmt=fmt)
+            return ax
+
+        if not group_names:
+            _plot_group_outliers(ax_data, plot_extents, ax=ax)
+
+        for group_idx, group_name in enumerate(group_names):
+            _plot_group_outliers(ax_data, plot_extents, group_idx=group_idx, group_name=group_name, ax=ax)
+
+    value_label, group_label, group_names, orient, hue_label = _get_info()
+    plot_data: np.array = data[value_label].values if value_label is not None else np.array(data)
 
     cutoff_lo, cutoff_hi = _get_cutoffs(plot_data)
     inlier_data = data.loc[np.logical_and(cutoff_lo <= plot_data, plot_data <= cutoff_hi)]
@@ -146,21 +167,16 @@ def handle_outliers(data: pd.DataFrame, x: str = None, y: str = None, hue: str =
 
     _add_to_kwargs('x', x), _add_to_kwargs('y', y), _add_to_kwargs('hue', hue)
 
-    ax = plotter(data=inlier_data, **kwargs)
-    plot_extents = np.array([ax.get_xlim(), ax.get_ylim()])
+    plot = plotter(data=inlier_data, **kwargs)
+    if type(plot) is sns.FacetGrid:
+        plot: sns.FacetGrid
+        for row, row_name in enumerate(plot.row_names):
+            row_data = data[data[plot._row_var] == row_name]
+            for col, col_name in enumerate(plot.col_names):
+                ax = plot.axes[row][col]
+                ax_df = row_data[row_data[plot._col_var] == col_name]
+                _plot_ax_outliers(ax, ax_data=ax_df)
+    else:
+        _plot_ax_outliers(plot, ax_data=data)
 
-    if plotter == sns.kdeplot:
-        orient = 'h'
-        group = .5 * np.diff(ax.get_ylim())
-        outlier_data = plot_data[np.logical_or(cutoff_lo > plot_data, plot_data > cutoff_hi)]
-        _plot_outliers(ax, outlier_data, orient=orient, group=group, padding=padding, margin=margin,
-                       plot_extents=plot_extents, fmt=fmt)
-        return ax
-
-    if not group_names:
-        _plot_group_outliers()
-
-    for group_idx, group_name in enumerate(group_names):
-        _plot_group_outliers(group_idx, group_name)
-
-    return ax
+    return plot
