@@ -138,6 +138,9 @@ def handle_outliers(data: pd.DataFrame, x: str = None, y: str = None, hue: str =
     cutoff_lo, cutoff_hi = _get_cutoffs(plot_data)
     inlier_data = data.loc[np.logical_and(cutoff_lo <= plot_data, plot_data <= cutoff_hi)]
 
+    if len(inlier_data) == 0:
+        raise UserWarning('No inliers in data, pleas modify inlier_range!')
+
     _add_to_kwargs('x', x), _add_to_kwargs('y', y), _add_to_kwargs('hue', hue)
 
     ax = plotter(data=inlier_data, **kwargs)
