@@ -1,5 +1,5 @@
 # outlier_plotting
-More graceful handling of outliers in plots. Currently supports most of seaborn categorical scatter and distributional and estimate plots.
+More graceful handling of outliers in plots. Currently supports most of seaborn categorical scatter, distributional and estimate plots.
 
 ## Functionality
 
@@ -16,6 +16,10 @@ Please not that only inliers are passed into the plotting function, consequently
 ### Example
 
 ```python
+from outlier_plotting.sns import handle_outliers
+import seaborn as sns
+from matplotlib import pyplot as plt
+
 plt.title('Showing Outliers')
 sns.boxplot(data=df, y = 'type', x='value')
 plt.show()

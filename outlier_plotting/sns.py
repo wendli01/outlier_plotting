@@ -1,5 +1,5 @@
 """
-More graceful handling of outliers for seaborn plotting.
+Outlier outlier_plotting in seaborn.
 """
 import warnings
 
@@ -11,7 +11,7 @@ import pandas as pd
 from typing import Union
 
 
-def _plot_outliers(ax, outliers, plot_extents, orient='v', group=0, padding=.05, margin=.1, outlier_hues=None,
+def _plot_outliers(ax, outliers, plot_extents, orient='v', group=0, padding=.05, outlier_hues=None,
                    fmt='.2g'):
     def _vals_to_str(vals, val_categories):
         def _format_val(val):
@@ -94,7 +94,7 @@ def handle_outliers(data: pd.DataFrame, x: str = None, y: str = None, hue: str =
     `sns.boxplot` and the like. Does *not* work with axis grids.
 
     data: pd.DataFrame
-        Dataset for plotting. Expected to be long-form.
+        Dataset for outlier_plotting. Expected to be long-form.
     x: str
         names of  x variables in data
     y: str
@@ -102,7 +102,7 @@ def handle_outliers(data: pd.DataFrame, x: str = None, y: str = None, hue: str =
     hue: str
         names of hue variables in data. Not fully supported.
     plotter: callable
-        `seaborn` plotting function that works with long-form data.
+        `seaborn` outlier_plotting function that works with long-form data.
     whis: float
         Proportion of the IQR past the low and high quartiles to extend the original plot. Points outside this range
         will be identified as outliers.
@@ -150,7 +150,7 @@ def handle_outliers(data: pd.DataFrame, x: str = None, y: str = None, hue: str =
         if all(is_outlier):
             raise UserWarning('No inliers in group <{}>, please modify inlier_range!'.format(group_name))
 
-        _plot_outliers(ax, group_outliers, orient=orient, group=group_idx, padding=padding, margin=margin,
+        _plot_outliers(ax, group_outliers, orient=orient, group=group_idx, padding=padding,
                        plot_extents=plot_extents, outlier_hues=outlier_hues, fmt=fmt)
 
     def _plot_ax_outliers(ax: plt.Axes, ax_data: Union[pd.DataFrame, pd.Series], plot_extents):
@@ -159,7 +159,7 @@ def handle_outliers(data: pd.DataFrame, x: str = None, y: str = None, hue: str =
             ax_data = ax_data.values
 
             outlier_data = ax_data[np.logical_or(cutoff_lo > ax_data, ax_data > cutoff_hi)]
-            _plot_outliers(ax, outlier_data, orient='h', group=group, padding=padding, margin=margin,
+            _plot_outliers(ax, outlier_data, orient='h', group=group, padding=padding,
                            plot_extents=plot_extents, fmt=fmt)
             return ax
 
