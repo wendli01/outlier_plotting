@@ -139,7 +139,8 @@ def handle_outliers(data: Union[pd.DataFrame, pd.Series, np.ndarray] = None,
     def _get_info():
         cp: _CategoricalPlotter = _CategoricalPlotter()
         cp.establish_variables(x=x, y=y, data=data, hue=hue)
-        return cp.value_label, cp.group_label, cp.group_names, cp.orient, cp.hue_title, cp.plot_data
+        orient = 'h' if plotter == sns.kdeplot else cp.orient
+        return cp.value_label, cp.group_label, cp.group_names, orient, cp.hue_title, cp.plot_data
 
     def _get_plot_data() -> np.ndarray:
         if data is not None:
@@ -190,7 +191,7 @@ def handle_outliers(data: Union[pd.DataFrame, pd.Series, np.ndarray] = None,
             ax_data = ax_data.values
 
             outlier_data = ax_data[np.logical_or(cutoff_lo > ax_data, ax_data > cutoff_hi)]
-            _plot_outliers(ax, outlier_data, orient='h', group=group, padding=padding,
+            _plot_outliers(ax, outlier_data, orient=orient, group=group, padding=padding,
                            plot_extents=plot_extents, fmt=fmt)
             return ax
 
