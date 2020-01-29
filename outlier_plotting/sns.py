@@ -8,11 +8,11 @@ import seaborn as sns
 from matplotlib import pyplot as plt
 from seaborn.categorical import _CategoricalPlotter
 import pandas as pd
-from typing import Union
+from typing import Union, List, Tuple
 
 
-def _plot_outliers(ax, outliers, plot_extents, orient='v', group=0, padding=.05, outlier_hues=None,
-                   fmt='.2g'):
+def _plot_outliers(ax, outliers, plot_extents: np.ndarray, orient: str = 'v',
+                   group: int = 0, padding: float = .05, outlier_hues: List = None, fmt: str = '.2g'):
     def _vals_to_str(vals, val_categories):
         def _format_val(val):
             return ("{:" + fmt + "}").format(val)
@@ -28,11 +28,11 @@ def _plot_outliers(ax, outliers, plot_extents, orient='v', group=0, padding=.05,
             texts.append(str(cat) + ':\t' + '\n\t'.join([_format_val(val) for val in cat_vals]))
         return '\n'.join(texts).expandtabs()
 
-    def _add_margin(lo, hi, mrg=.1, rng=None):
+    def _add_margin(lo: float, hi: float, mrg: float = .1, rng: Union[None, float] = None):
         rng = hi - lo if rng is None else rng
         return lo - mrg * rng, hi + mrg * rng
 
-    def _set_limits(t):
+    def _set_limits(t: plt.text):
         def _get_bbox_pos():
             plt.gcf().canvas.draw()
             return t.get_window_extent().inverse_transformed(plt.gca().transData)
@@ -50,7 +50,7 @@ def _plot_outliers(ax, outliers, plot_extents, orient='v', group=0, padding=.05,
             new_extents = old_extents
         lim_setter(new_extents)
 
-    def _plot_text(is_low):
+    def _plot_text(is_low: bool):
         is_relevant = outliers < vmin if is_low else outliers > vmax
         points = outliers[is_relevant]
         point_hues = None if outlier_hues is None else outlier_hues[is_relevant]
@@ -77,7 +77,7 @@ def _plot_outliers(ax, outliers, plot_extents, orient='v', group=0, padding=.05,
     _plot_text(True), _plot_text(False)
 
 
-def _add_margins(ax: plt.Axes, plot_data, cutoff_lo: float, cutoff_hi: float, orient: str, margin: float):
+def _add_margins(ax: plt.Axes, plot_data: np.ndarray, cutoff_lo: float, cutoff_hi: float, orient: str, margin: float):
     old_extents = ax.get_ylim() if orient == 'v' else ax.get_xlim()
     lim_setter = ax.set_ylim if orient == 'v' else ax.set_xlim
     if np.min(plot_data) < cutoff_lo:
@@ -86,23 +86,21 @@ def _add_margins(ax: plt.Axes, plot_data, cutoff_lo: float, cutoff_hi: float, or
         lim_setter([None, old_extents[1] + margin * np.diff(old_extents)])
 
 
-def _get_inlier_data(data: Union[pd.Series, pd.DataFrame, np.ndarray], plot_data, cutoff_lo: float, cutoff_hi: float) -> \
+def _get_inlier_data(data: pd.Series, plot_data, cutoff_lo: float, cutoff_hi: float) -> \
         Union[pd.Series, pd.DataFrame]:
     inlier_data = data[np.logical_and(cutoff_lo <= plot_data, plot_data <= cutoff_hi)]
-    if type(inlier_data) != pd.DataFrame:
-        inlier_data = pd.Series(inlier_data)
-    if type(inlier_data) == pd.Series:
-        inlier_data = inlier_data.reset_index(drop=True)
 
     if len(inlier_data) == 0:
-        raise UserWarning('No inliers in data, pleas modify inlier_range!')
+        raise UserWarning('No inliers in data, please modify inlier_range!')
 
-    return inlier_data
+    return inlier_data.reset_index(drop=True)
 
 
-def handle_outliers(data: Union[pd.DataFrame, pd.Series, np.ndarray] = None,
-                    x: Union[pd.Series, np.ndarray, str] = None, y: Union[pd.Series, np.ndarray, str] = None,
-                    hue: str = None, plotter: callable = sns.swarmplot, inlier_range: float = 1.5, padding: float = .05,
+def handle_outliers(data: Union[pd.DataFrame, pd.Series, np.ndarray, None] = None,
+                    x: Union[pd.Series, np.ndarray, str, None] = None,
+                    y: Union[pd.Series, np.ndarray, str, None] = None,
+                    hue: Union[pd.Series, np.ndarray, str, None] = None, plotter: callable = sns.swarmplot,
+                    inlier_range: float = 1.5, padding: float = .05,
                     margin: float = .1, fmt='.2g', **kwargs) -> plt.axes:
     """
     Remove outliers from the plot and show them as text boxes. Works well with `sns.violinplot`, `sns.swarmplot`,
@@ -136,11 +134,11 @@ def handle_outliers(data: Union[pd.DataFrame, pd.Series, np.ndarray] = None,
 
     """
 
-    def _get_info():
+    def _get_info() -> Tuple[Union[str, None], Union[str, None], List, str, Union[str, None]]:
         cp: _CategoricalPlotter = _CategoricalPlotter()
         cp.establish_variables(x=x, y=y, data=data, hue=hue)
         orient = 'h' if plotter == sns.kdeplot else cp.orient
-        return cp.value_label, cp.group_label, cp.group_names, orient, cp.hue_title, cp.plot_data
+        return cp.value_label, cp.group_label, cp.group_names, orient, cp.hue_title
 
     def _get_plot_data() -> np.ndarray:
         if data is not None:
@@ -148,7 +146,7 @@ def handle_outliers(data: Union[pd.DataFrame, pd.Series, np.ndarray] = None,
         ret = kwargs[_which_data_var()]
         return ret.values if type(ret) == pd.Series else ret
 
-    def _which_data_var():
+    def _which_data_var() -> str:
         if data is not None:
             return 'data'
         else:
@@ -156,22 +154,17 @@ def handle_outliers(data: Union[pd.DataFrame, pd.Series, np.ndarray] = None,
                 return 'y' if orient == 'v' else 'x'
             return 'y' if x is None else 'x'
 
-    def _get_cutoffs(a: np.array, quantiles=(.25, .75)):
+    def _get_cutoffs(a: np.array, quantiles=(.25, .75)) -> Tuple[float, float]:
         quartiles = np.quantile(a, list(quantiles))
         iqr = np.diff(quartiles)
         return quartiles[0] - inlier_range * iqr, quartiles[1] + inlier_range * iqr
 
-    def _add_to_kwargs(k, v):
+    def _add_to_kwargs(k: str, v: any):
         if v is not None:
             kwargs[k] = v
 
-    def _plot_group_outliers(data: Union[pd.DataFrame, pd.Series], plot_extents, ax: plt.Axes, group_idx: int = 0,
-                             group_name: str = None):
-        if group_name is None or group_label is None or type(data) == pd.Series:
-            group_data = data
-        else:
-            group_data = data[data[group_label] == group_name]
-
+    def _plot_group_outliers(group_data: Union[pd.Series, pd.DataFrame], plot_extents, ax: plt.Axes, group_idx: int = 0,
+                             group_name: Union[str, None] = None):
         if value_label is None or type(group_data) == pd.Series:
             group_values = group_data.values
         else:
@@ -187,7 +180,7 @@ def handle_outliers(data: Union[pd.DataFrame, pd.Series, np.ndarray] = None,
         _plot_outliers(ax, group_outliers, orient=orient, group=group_idx, padding=padding,
                        plot_extents=plot_extents, outlier_hues=outlier_hues, fmt=fmt)
 
-    def _plot_ax_outliers(ax: plt.Axes, ax_data: Union[pd.DataFrame, pd.Series], plot_extents):
+    def _plot_ax_outliers(ax: plt.Axes, ax_data: pd.Series, plot_extents: np.ndarray):
         if plotter == sns.kdeplot:
             group = .5 * np.diff(ax.get_ylim())
             ax_data = ax_data.values
@@ -204,19 +197,19 @@ def handle_outliers(data: Union[pd.DataFrame, pd.Series, np.ndarray] = None,
             _plot_group_outliers(ax_data, plot_extents, group_idx=group_idx, group_name=group_name, ax=ax)
 
     _add_to_kwargs('x', x), _add_to_kwargs('y', y), _add_to_kwargs('hue', hue), _add_to_kwargs('data', data)
-    value_label, group_label, group_names, orient, hue_label, plot_data = _get_info()
+    value_label, group_label, group_names, orient, hue_label = _get_info()
     plot_data: np.array = _get_plot_data()
 
     actual_data: Union[pd.Series, pd.DataFrame, np.ndarray] = plot_data if data is None else data
-    actual_data: pd.Series = pd.Series(actual_data) if type(actual_data) not in (
+    actual_data: Union[pd.Series, pd.DataFrame] = pd.Series(actual_data) if type(actual_data) not in (
         pd.Series, pd.DataFrame) else actual_data
 
     cutoff_lo, cutoff_hi = _get_cutoffs(plot_data)
 
-    inlier_data = _get_inlier_data(actual_data, plot_data, cutoff_lo, cutoff_hi)
+    inlier_data: Union[pd.Series, pd.DataFrame] = _get_inlier_data(actual_data, plot_data, cutoff_lo, cutoff_hi)
     kwargs[_which_data_var()] = inlier_data
 
-    plot = plotter(**kwargs)
+    plot: Union[plt.Axes, sns.FacetGrid] = plotter(**kwargs)
 
     if type(plot) == sns.FacetGrid:
         sample_ax = np.hstack(plot.axes)[0]
@@ -233,7 +226,7 @@ def handle_outliers(data: Union[pd.DataFrame, pd.Series, np.ndarray] = None,
             _add_margins(ax, plot_data, cutoff_lo, cutoff_hi, orient, margin)
         return plot
 
-    plot_extents = np.array([plot.get_xlim(), plot.get_ylim()])
+    plot_extents: np.ndarray[[float, float], [float, float]] = np.array([plot.get_xlim(), plot.get_ylim()])
     _plot_ax_outliers(plot, ax_data=actual_data, plot_extents=plot_extents)
 
     _add_margins(plot, plot_data, cutoff_lo, cutoff_hi, orient, margin)
