@@ -145,8 +145,16 @@ def handle_outliers(data: Union[pd.DataFrame, pd.Series, np.ndarray] = None,
     def _get_plot_data() -> np.ndarray:
         if data is not None:
             return data[value_label].values if value_label is not None else np.array(data)
-        ret = y if x is None else x
+        ret = kwargs[_which_data_var()]
         return ret.values if type(ret) == pd.Series else ret
+
+    def _which_data_var():
+        if data is not None:
+            return 'data'
+        else:
+            if x is not None and y is not None:
+                return 'y' if orient == 'v' else 'x'
+            return 'y' if x is None else 'x'
 
     def _get_cutoffs(a: np.array, quantiles=(.25, .75)):
         quartiles = np.quantile(a, list(quantiles))
@@ -157,15 +165,9 @@ def handle_outliers(data: Union[pd.DataFrame, pd.Series, np.ndarray] = None,
         if v is not None:
             kwargs[k] = v
 
-    def _set_inlier_kwargs():
-        if data is not None:
-            kwargs['data'] = inlier_data
-        else:
-            kwargs['x'] = inlier_data
-
     def _plot_group_outliers(data: Union[pd.DataFrame, pd.Series], plot_extents, ax: plt.Axes, group_idx: int = 0,
                              group_name: str = None):
-        if group_name is None or group_label is None or type(data) in (pd.Series, np.ndarray):
+        if group_name is None or group_label is None or type(data) == pd.Series:
             group_data = data
         else:
             group_data = data[data[group_label] == group_name]
@@ -212,7 +214,7 @@ def handle_outliers(data: Union[pd.DataFrame, pd.Series, np.ndarray] = None,
     cutoff_lo, cutoff_hi = _get_cutoffs(plot_data)
 
     inlier_data = _get_inlier_data(actual_data, plot_data, cutoff_lo, cutoff_hi)
-    _set_inlier_kwargs()
+    kwargs[_which_data_var()] = inlier_data
 
     plot = plotter(**kwargs)
 
