@@ -37,20 +37,17 @@ def _plot_outliers(ax, outliers, plot_extents, orient='v', group=0, padding=.05,
             plt.gcf().canvas.draw()
             return t.get_window_extent().inverse_transformed(plt.gca().transData)
 
-        old_extents = plot_extents[dim_sel]
-
+        old_extents = ax.get_ylim() if is_v else ax.get_xlim()
         val_coords = np.array(_get_bbox_pos()).T[dim_sel]
-        val_coords = _add_margin(*val_coords, margin, rng=np.diff(plot_extents[dim_sel]))
 
         new_extents = [np.min([val_coords, old_extents]), np.max([val_coords, old_extents])]
         lim_setter = ax.set_ylim if is_v else ax.set_xlim
 
-        # if new extents are more than 2.5 times as large as old extents, we assume _get_bbox_pos failed.
-        if (np.diff(new_extents) / np.diff(old_extents)) > 2.5:
-            warnings.warn(
-                'Determining text position failed, setting extent with margin + padding = {} as fallback.'.format(
-                    margin + padding))
-            new_extents = _add_margin(old_extents[0], old_extents[1], margin + padding)
+        # if new extents are more than .5 times larger as old extents with padding, we assume _get_bbox_pos failed.
+        if (np.diff(new_extents) / np.diff(old_extents)) > 1 + padding + .5:
+            warnings.warn('Determining text position failed, cannot set new plot extent. '
+                          'Please modify margin if any text is cut off.'.format(padding))
+            new_extents = old_extents
         lim_setter(new_extents)
 
     def _plot_text(is_low):
@@ -78,6 +75,15 @@ def _plot_outliers(ax, outliers, plot_extents, orient='v', group=0, padding=.05,
     dim_sel = 1 if is_v else 0
     vmin, vmax = plot_extents[dim_sel]
     _plot_text(True), _plot_text(False)
+
+
+def _add_margins(ax: plt.Axes, plot_data, cutoff_lo: float, cutoff_hi: float, orient: str, margin: float):
+    old_extents = ax.get_ylim() if orient == 'v' else ax.get_xlim()
+    lim_setter = ax.set_ylim if orient == 'v' else ax.set_xlim
+    if np.min(plot_data) < cutoff_lo:
+        lim_setter([old_extents[0] - margin * np.diff(old_extents), None])
+    if np.max(plot_data) > cutoff_hi:
+        lim_setter([None, old_extents[1] + margin * np.diff(old_extents)])
 
 
 def handle_outliers(data: pd.DataFrame, x: str = None, y: str = None, hue: str = None,
@@ -185,8 +191,14 @@ def handle_outliers(data: pd.DataFrame, x: str = None, y: str = None, hue: str =
             for col, col_name in enumerate(col_names):
                 ax_df = row_df if col_name is None else row_df[row_df[kwargs['col']] == col_name]
                 _plot_ax_outliers(ax=plot.axes[row][col], ax_data=ax_df, plot_extents=plot_extents)
-    else:
-        plot_extents = np.array([plot.get_xlim(), plot.get_ylim()])
-        _plot_ax_outliers(plot, ax_data=data, plot_extents=plot_extents)
+
+        for ax in np.hstack(plot.axes):
+            _add_margins(ax, plot_data, cutoff_lo, cutoff_hi, orient, margin)
+        return plot
+
+    plot_extents = np.array([plot.get_xlim(), plot.get_ylim()])
+    _plot_ax_outliers(plot, ax_data=data, plot_extents=plot_extents)
+
+    _add_margins(plot, plot_data, cutoff_lo, cutoff_hi, orient, margin)
 
     return plot
