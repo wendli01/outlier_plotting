@@ -6,6 +6,7 @@ import warnings
 import numpy as np
 import seaborn as sns
 from matplotlib import pyplot as plt
+# noinspection PyProtectedMember
 from seaborn.categorical import _CategoricalPlotter
 import pandas as pd
 from typing import Union, List, Tuple
@@ -137,8 +138,8 @@ def handle_outliers(data: Union[pd.DataFrame, pd.Series, np.ndarray, None] = Non
     def _get_info() -> Tuple[Union[str, None], Union[str, None], List, str, Union[str, None]]:
         cp: _CategoricalPlotter = _CategoricalPlotter()
         cp.establish_variables(x=x, y=y, data=data, hue=hue)
-        orient = 'h' if plotter == sns.kdeplot else cp.orient
-        return cp.value_label, cp.group_label, cp.group_names, orient, cp.hue_title
+        orientation = 'h' if plotter == sns.kdeplot else cp.orient
+        return cp.value_label, cp.group_label, cp.group_names, orientation, cp.hue_title
 
     def _get_plot_data() -> np.ndarray:
         if data is not None:
@@ -163,7 +164,7 @@ def handle_outliers(data: Union[pd.DataFrame, pd.Series, np.ndarray, None] = Non
         if v is not None:
             kwargs[k] = v
 
-    def _plot_group_outliers(group_data: Union[pd.Series, pd.DataFrame], plot_extents, ax: plt.Axes, group_idx: int = 0,
+    def _plot_group_outliers(group_data: Union[pd.Series, pd.DataFrame], extent, axes: plt.Axes, group_idx: int = 0,
                              group_name: Union[str, None] = None):
         if value_label is None or type(group_data) == pd.Series:
             group_values = group_data.values
@@ -177,24 +178,24 @@ def handle_outliers(data: Union[pd.DataFrame, pd.Series, np.ndarray, None] = Non
         if all(is_outlier):
             raise UserWarning('No inliers in group <{}>, please modify inlier_range!'.format(group_name))
 
-        _plot_outliers(ax, group_outliers, orient=orient, group=group_idx, padding=padding,
-                       plot_extents=plot_extents, outlier_hues=outlier_hues, fmt=fmt)
+        _plot_outliers(axes, group_outliers, orient=orient, group=group_idx, padding=padding,
+                       plot_extents=extent, outlier_hues=outlier_hues, fmt=fmt)
 
-    def _plot_ax_outliers(ax: plt.Axes, ax_data: pd.Series, plot_extents: np.ndarray):
+    def _plot_ax_outliers(axes: plt.Axes, ax_data: pd.Series, extents: np.ndarray):
         if plotter == sns.kdeplot:
-            group = .5 * np.diff(ax.get_ylim())
+            group = .5 * np.diff(axes.get_ylim())
             ax_data = ax_data.values
 
             outlier_data = ax_data[np.logical_or(cutoff_lo > ax_data, ax_data > cutoff_hi)]
-            _plot_outliers(ax, outlier_data, orient=orient, group=group, padding=padding,
-                           plot_extents=plot_extents, fmt=fmt)
-            return ax
+            _plot_outliers(axes, outlier_data, orient=orient, group=group, padding=padding,
+                           plot_extents=extents, fmt=fmt)
+            return axes
 
         if not group_names:
-            _plot_group_outliers(ax_data, plot_extents, ax=ax)
+            _plot_group_outliers(ax_data, extents, axes=axes)
 
         for group_idx, group_name in enumerate(group_names):
-            _plot_group_outliers(ax_data, plot_extents, group_idx=group_idx, group_name=group_name, ax=ax)
+            _plot_group_outliers(ax_data, extents, group_idx=group_idx, group_name=group_name, axes=axes)
 
     _add_to_kwargs('x', x), _add_to_kwargs('y', y), _add_to_kwargs('hue', hue), _add_to_kwargs('data', data)
     value_label, group_label, group_names, orient, hue_label = _get_info()
@@ -220,14 +221,14 @@ def handle_outliers(data: Union[pd.DataFrame, pd.Series, np.ndarray, None] = Non
             row_df = actual_data if row_name is None else actual_data[actual_data[kwargs['row']] == row_name]
             for col, col_name in enumerate(col_names):
                 ax_df = row_df if col_name is None else row_df[row_df[kwargs['col']] == col_name]
-                _plot_ax_outliers(ax=plot.axes[row][col], ax_data=ax_df, plot_extents=plot_extents)
+                _plot_ax_outliers(axes=plot.axes[row][col], ax_data=ax_df, extents=plot_extents)
 
         for ax in np.hstack(plot.axes):
             _add_margins(ax, plot_data, cutoff_lo, cutoff_hi, orient, margin)
         return plot
 
     plot_extents: np.ndarray[[float, float], [float, float]] = np.array([plot.get_xlim(), plot.get_ylim()])
-    _plot_ax_outliers(plot, ax_data=actual_data, plot_extents=plot_extents)
+    _plot_ax_outliers(plot, ax_data=actual_data, extents=plot_extents)
 
     _add_margins(plot, plot_data, cutoff_lo, cutoff_hi, orient, margin)
 
