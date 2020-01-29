@@ -43,3 +43,6 @@ For more examples, see [examples.ipynb](https://github.com/wendli01/outlier_plot
 
 `conda env create -f environment.yml`
 
+##PyPI
+
+[`pip install outlier-plotting`](https://pypi.org/project/outlier-plotting/)
