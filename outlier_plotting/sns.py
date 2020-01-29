@@ -86,8 +86,23 @@ def _add_margins(ax: plt.Axes, plot_data, cutoff_lo: float, cutoff_hi: float, or
         lim_setter([None, old_extents[1] + margin * np.diff(old_extents)])
 
 
-def handle_outliers(data: pd.DataFrame, x: str = None, y: str = None, hue: str = None,
-                    plotter: callable = sns.swarmplot, inlier_range: float = 1.5, padding: float = .05,
+def _get_inlier_data(data: Union[pd.Series, pd.DataFrame, np.ndarray], plot_data, cutoff_lo: float, cutoff_hi: float) -> \
+        Union[pd.Series, pd.DataFrame]:
+    inlier_data = data[np.logical_and(cutoff_lo <= plot_data, plot_data <= cutoff_hi)]
+    if type(inlier_data) != pd.DataFrame:
+        inlier_data = pd.Series(inlier_data)
+    if type(inlier_data) == pd.Series:
+        inlier_data = inlier_data.reset_index(drop=True)
+
+    if len(inlier_data) == 0:
+        raise UserWarning('No inliers in data, pleas modify inlier_range!')
+
+    return inlier_data
+
+
+def handle_outliers(data: Union[pd.DataFrame, pd.Series, np.ndarray] = None,
+                    x: Union[pd.Series, np.ndarray, str] = None, y: Union[pd.Series, np.ndarray, str] = None,
+                    hue: str = None, plotter: callable = sns.swarmplot, inlier_range: float = 1.5, padding: float = .05,
                     margin: float = .1, fmt='.2g', **kwargs) -> plt.axes:
     """
     Remove outliers from the plot and show them as text boxes. Works well with `sns.violinplot`, `sns.swarmplot`,
@@ -122,9 +137,15 @@ def handle_outliers(data: pd.DataFrame, x: str = None, y: str = None, hue: str =
     """
 
     def _get_info():
-        cp = _CategoricalPlotter()
+        cp: _CategoricalPlotter = _CategoricalPlotter()
         cp.establish_variables(x=x, y=y, data=data, hue=hue)
-        return cp.value_label, cp.group_label, cp.group_names, cp.orient, cp.hue_title
+        return cp.value_label, cp.group_label, cp.group_names, cp.orient, cp.hue_title, cp.plot_data
+
+    def _get_plot_data() -> np.ndarray:
+        if data is not None:
+            return data[value_label].values if value_label is not None else np.array(data)
+        ret = y if x is None else x
+        return ret.values if type(ret) == pd.Series else ret
 
     def _get_cutoffs(a: np.array, quantiles=(.25, .75)):
         quartiles = np.quantile(a, list(quantiles))
@@ -135,17 +156,27 @@ def handle_outliers(data: pd.DataFrame, x: str = None, y: str = None, hue: str =
         if v is not None:
             kwargs[k] = v
 
-    def _plot_group_outliers(df: pd.DataFrame, plot_extents, ax: plt.Axes, group_idx: int = 0,
-                             group_name: str = None):
-        if group_name is None:
-            group_df = df
+    def _set_inlier_kwargs():
+        if data is not None:
+            kwargs['data'] = inlier_data
         else:
-            group_df = df[df[group_label] == group_name]
+            kwargs['x'] = inlier_data
 
-        group_values = group_df[value_label].values
+    def _plot_group_outliers(data: Union[pd.DataFrame, pd.Series], plot_extents, ax: plt.Axes, group_idx: int = 0,
+                             group_name: str = None):
+        if group_name is None or group_label is None or type(data) in (pd.Series, np.ndarray):
+            group_data = data
+        else:
+            group_data = data[data[group_label] == group_name]
+
+        if value_label is None or type(group_data) == pd.Series:
+            group_values = group_data.values
+        else:
+            group_values = group_data[value_label].values
+
         is_outlier = np.logical_or(cutoff_lo > group_values, group_values > cutoff_hi)
         group_outliers = group_values[is_outlier]
-        outlier_hues = None if hue_label is None else group_df[is_outlier][hue_label]
+        outlier_hues = None if hue_label is None else group_data[is_outlier][hue_label]
 
         if all(is_outlier):
             raise UserWarning('No inliers in group <{}>, please modify inlier_range!'.format(group_name))
@@ -169,25 +200,28 @@ def handle_outliers(data: pd.DataFrame, x: str = None, y: str = None, hue: str =
         for group_idx, group_name in enumerate(group_names):
             _plot_group_outliers(ax_data, plot_extents, group_idx=group_idx, group_name=group_name, ax=ax)
 
-    value_label, group_label, group_names, orient, hue_label = _get_info()
-    plot_data: np.array = data[value_label].values if value_label is not None else np.array(data)
+    _add_to_kwargs('x', x), _add_to_kwargs('y', y), _add_to_kwargs('hue', hue), _add_to_kwargs('data', data)
+    value_label, group_label, group_names, orient, hue_label, plot_data = _get_info()
+    plot_data: np.array = _get_plot_data()
+
+    actual_data: Union[pd.Series, pd.DataFrame, np.ndarray] = plot_data if data is None else data
+    actual_data: pd.Series = pd.Series(actual_data) if type(actual_data) not in (
+        pd.Series, pd.DataFrame) else actual_data
 
     cutoff_lo, cutoff_hi = _get_cutoffs(plot_data)
-    inlier_data = data.loc[np.logical_and(cutoff_lo <= plot_data, plot_data <= cutoff_hi)]
 
-    if len(inlier_data) == 0:
-        raise UserWarning('No inliers in data, pleas modify inlier_range!')
+    inlier_data = _get_inlier_data(actual_data, plot_data, cutoff_lo, cutoff_hi)
+    _set_inlier_kwargs()
 
-    _add_to_kwargs('x', x), _add_to_kwargs('y', y), _add_to_kwargs('hue', hue)
+    plot = plotter(**kwargs)
 
-    plot = plotter(data=inlier_data, **kwargs)
-    if type(plot) is sns.FacetGrid:
+    if type(plot) == sns.FacetGrid:
         sample_ax = np.hstack(plot.axes)[0]
         plot_extents = np.array([sample_ax.get_xlim(), sample_ax.get_ylim()])
 
         row_names, col_names = [[None] if not a else a for a in [plot.row_names, plot.col_names]]
         for row, row_name in enumerate(row_names):
-            row_df = data if row_name is None else data[data[kwargs['row']] == row_name]
+            row_df = actual_data if row_name is None else actual_data[actual_data[kwargs['row']] == row_name]
             for col, col_name in enumerate(col_names):
                 ax_df = row_df if col_name is None else row_df[row_df[kwargs['col']] == col_name]
                 _plot_ax_outliers(ax=plot.axes[row][col], ax_data=ax_df, plot_extents=plot_extents)
@@ -197,7 +231,7 @@ def handle_outliers(data: pd.DataFrame, x: str = None, y: str = None, hue: str =
         return plot
 
     plot_extents = np.array([plot.get_xlim(), plot.get_ylim()])
-    _plot_ax_outliers(plot, ax_data=data, plot_extents=plot_extents)
+    _plot_ax_outliers(plot, ax_data=actual_data, plot_extents=plot_extents)
 
     _add_margins(plot, plot_data, cutoff_lo, cutoff_hi, orient, margin)
 
