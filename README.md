@@ -30,9 +30,9 @@ plt.show()
 ```
 
 
-![png](images/output_7_0.png)
+![png](https://github.com/wendli01/outlier_plotting/raw/master/images/output_7_0.png)
 
-![png](images/output_7_1.png)
+![png](https://github.com/wendli01/outlier_plotting/raw/master/images/output_7_1.png)
 
 For more examples, see [examples.ipynb](https://github.com/wendli01/outlier_plotting/blob/master/examples.ipynb).
 
