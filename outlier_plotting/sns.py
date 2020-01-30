@@ -79,8 +79,16 @@ def _plot_outliers(ax, outliers, plot_extents: np.ndarray, orient: str = 'v',
 
 
 def _add_margins(ax: plt.Axes, plot_data: np.ndarray, cutoff_lo: float, cutoff_hi: float, orient: str, margin: float):
-    old_extents = ax.get_ylim() if orient == 'v' else ax.get_xlim()
-    lim_setter = ax.set_ylim if orient == 'v' else ax.set_xlim
+    def _quantized_abs_ceil(x, q=0.5):
+        return np.ceil(np.abs(x) / q) * q * np.sign(x)
+
+    if orient == 'v':
+        old_extents, lim_setter = ax.get_ylim(), ax.set_ylim
+        ax.set_xlim(*list(map(_quantized_abs_ceil, ax.get_xlim())))
+    else:
+        old_extents, lim_setter = ax.get_xlim(), ax.set_xlim
+        ax.set_ylim(*list(map(_quantized_abs_ceil, ax.get_ylim())))
+
     if np.min(plot_data) < cutoff_lo:
         lim_setter([old_extents[0] - margin * np.diff(old_extents), None])
     if np.max(plot_data) > cutoff_hi:
