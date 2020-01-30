@@ -5,7 +5,7 @@ with open("README.md", "r") as fh:
 
 setuptools.setup(
     name="outlier_plotting",
-    version="0.2.0",
+    version="0.2.1",
     author="Lorenz Wendlinger",
     author_email="lorenz.wen@gmx.com",
     description="More graceful handling of outliers in plots",
