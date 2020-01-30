@@ -163,6 +163,11 @@ def handle_outliers(data: Union[pd.DataFrame, pd.Series, np.ndarray, None] = Non
                 return 'y' if orient == 'v' else 'x'
             return 'y' if x is None else 'x'
 
+    def _which_group_var() -> str:
+        if _which_data_var() == 'data':
+            return 'data'
+        return 'x' if _which_data_var() == 'y' else 'y'
+
     def _get_cutoffs(a: np.array, quantiles=(.25, .75)) -> Tuple[float, float]:
         quartiles = np.quantile(a, list(quantiles))
         iqr = np.diff(quartiles)
@@ -172,19 +177,25 @@ def handle_outliers(data: Union[pd.DataFrame, pd.Series, np.ndarray, None] = Non
         if v is not None:
             kwargs[k] = v
 
-    def _plot_group_outliers(group_data: Union[pd.Series, pd.DataFrame], extent, axes: plt.Axes, group_idx: int = 0,
+    def _plot_group_outliers(all_data: Union[pd.Series, pd.DataFrame], extent, axes: plt.Axes, group_idx: int = 0,
                              group_name: Union[str, None] = None):
-        if value_label is None or type(group_data) == pd.Series:
-            group_values = group_data.values
+        if group_name is None:
+            group_data: pd.Series = pd.Series(all_data)
+            group_values: np.ndarray = group_data.values
         else:
-            group_values = group_data[value_label].values
+            if value_label is None or type(all_data) == pd.Series:
+                group_data: pd.Series = all_data[kwargs[_which_group_var()] == group_name]
+                group_values: np.ndarray = group_data.values
+            else:
+                group_data: pd.DataFrame = all_data[all_data[group_label] == group_name]
+                group_values: np.ndarray = group_data[value_label].values
 
         is_outlier = np.logical_or(cutoff_lo > group_values, group_values > cutoff_hi)
-        group_outliers = group_values[is_outlier]
-        outlier_hues = None if hue_label is None else group_data[is_outlier][hue_label]
-
         if all(is_outlier):
             raise UserWarning('No inliers in group <{}>, please modify inlier_range!'.format(group_name))
+
+        group_outliers = group_values[is_outlier]
+        outlier_hues = None if hue_label is None else group_data[is_outlier][hue_label]
 
         _plot_outliers(axes, group_outliers, orient=orient, group=group_idx, padding=padding,
                        plot_extents=extent, outlier_hues=outlier_hues, fmt=fmt)
@@ -199,8 +210,9 @@ def handle_outliers(data: Union[pd.DataFrame, pd.Series, np.ndarray, None] = Non
                            plot_extents=extents, fmt=fmt)
             return axes
 
-        if not group_names:
+        if not group_names or len(group_names) == 1:
             _plot_group_outliers(ax_data, extents, axes=axes)
+            return
 
         for group_idx, group_name in enumerate(group_names):
             _plot_group_outliers(ax_data, extents, group_idx=group_idx, group_name=group_name, axes=axes)
