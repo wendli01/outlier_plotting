@@ -125,7 +125,7 @@ def handle_outliers(data: Union[pd.DataFrame, pd.Series, np.ndarray, None] = Non
         names of hue variables in data. Not fully supported.
     plotter: callable
         `seaborn` outlier_plotting function that works with long-form data.
-    whis: float
+    inlier_range: float
         Proportion of the IQR past the low and high quartiles to extend the original plot. Points outside this range
         will be identified as outliers.
     padding: float

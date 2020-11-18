@@ -36,6 +36,10 @@ plt.show()
 
 For more examples, see [examples.ipynb](https://github.com/wendli01/outlier_plotting/blob/master/examples.ipynb).
 
+### Customization
+
+The cutoff at which data points are considered outliers can be set as a multiple of the IQR (c.f. [`inlier_range`](https://github.com/wendli01/outlier_plotting/blob/master/outlier_plotting/sns.py#L128)). 
+Margin (c.f. [`margin`](https://github.com/wendli01/outlier_plotting/blob/master/outlier_plotting/sns.py#L133)) and padding (c.f. [`padding`](https://github.com/wendli01/outlier_plotting/blob/master/outlier_plotting/sns.py#L131)) for the text boxes can be changed as well.
 
 # Installation
 
@@ -43,6 +47,6 @@ For more examples, see [examples.ipynb](https://github.com/wendli01/outlier_plot
 
 `conda env create -f environment.yml`
 
-##PyPI
+## pip
 
 [`pip install outlier-plotting`](https://pypi.org/project/outlier-plotting/)
